@@ -946,6 +946,7 @@ export abstract class Camera extends Evented {
         easeId?: string;
         noMoveStart?: boolean;
     }, eventData?: any): this {
+
         this._stop(false, options.easeId);
 
         options = extend({
@@ -954,7 +955,12 @@ export abstract class Camera extends Evented {
             easing: defaultEasing
         }, options);
 
-        if (options.animate === false || (!options.essential && browser.prefersReducedMotion)) options.duration = 0;
+        if (options.animate === false) options.duration = 0;
+
+        if (!options.essential && browser.prefersReducedMotion) {
+            options.duration = 0;
+            options.around = this.getCenter();
+        }
 
         const tr = this._getTransformForUpdate(),
             startZoom = this.getZoom(),
