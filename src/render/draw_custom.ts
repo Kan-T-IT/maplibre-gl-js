@@ -12,34 +12,36 @@ export function drawCustom(painter: Painter, sourceCache: SourceCache, layer: Cu
 
     if (painter.renderPass === 'offscreen') {
 
-        const prerender = implementation.prerender;
-        if (prerender) {
-            painter.setCustomLayerDefaults();
-            context.setColorMode(painter.colorModeForRenderPass());
+      // console.log('drawCustom offscreen');
+      //   const prerender = implementation.prerender;
+      //   if (prerender) {
+      //       painter.setCustomLayerDefaults();
+      //       context.setColorMode(painter.colorModeForRenderPass());
 
-            prerender.call(implementation, context.gl, painter.transform.customLayerMatrix());
+      //       prerender.call(implementation, context.gl, painter.transform.customLayerMatrix());
 
-            context.setDirty();
-            painter.setBaseState();
-        }
+      //       context.setDirty();
+      //       painter.setBaseState();
+      //   }
 
     } else if (painter.renderPass === 'translucent') {
 
-        painter.setCustomLayerDefaults();
+      console.log('drawCustom translucent');
+        // painter.setCustomLayerDefaults();
 
         context.setColorMode(painter.colorModeForRenderPass());
-        context.setStencilMode(StencilMode.disabled);
+        // context.setStencilMode(StencilMode.disabled);
 
-        const depthMode = implementation.renderingMode === '3d' ?
-            new DepthMode(painter.context.gl.LEQUAL, DepthMode.ReadWrite, painter.depthRangeFor3D) :
-            painter.depthModeForSublayer(0, DepthMode.ReadOnly);
+        // const depthMode = implementation.renderingMode === '3d' ?
+        //     new DepthMode(painter.context.gl.LEQUAL, DepthMode.ReadWrite, painter.depthRangeFor3D) :
+        //     painter.depthModeForSublayer(0, DepthMode.ReadOnly);
 
-        context.setDepthMode(depthMode);
+        // context.setDepthMode(depthMode);
 
         implementation.render(context.gl, painter.transform.customLayerMatrix());
 
-        context.setDirty();
-        painter.setBaseState();
-        context.bindFramebuffer.set(null);
+        // context.setDirty();
+        // painter.setBaseState();
+        // context.bindFramebuffer.set(null);
     }
 }

@@ -8,14 +8,105 @@
     <link rel='stylesheet' href='../../dist/maplibre-gl.css' />
     <script src='../../dist/maplibre-gl-dev.js'></script>
     <style>
-        body { margin: 0; padding: 0; }
+        body { margin: 0; padding: 0; background-color: green;}
         html, body, #map { height: 100%; }
+        #enter-ar {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #enter-ar:hover {
+            background-color: #c9c9c9;
+        }
     </style>
 </head>
 <body>
 <div id="map"></div>
+<button id="enter-ar" onclick="webXRInitialize();">Enter AR</button>
 <script>
-    const map = new maplibregl.Map({
+
+async function webXRInitialize() {
+    maplibreMap.showTileBoundaries = true;
+    const gl = maplibreMap.painter.context.gl;
+    if (!gl) {
+        console.error('WebGL2 not supported');
+        return false;
+    }
+    try {
+        const xr = navigator.xr;
+        if (!xr) {
+            console.error('No WebXR support found');
+            return false;
+        } else {
+            xr.addEventListener('devicechange', (event) => {
+                console.log('devicechange', event);
+            });
+
+            const isInlineSupported = await xr.isSessionSupported('inline');
+            const isVrSupported = await xr.isSessionSupported('immersive-vr');
+            const isArSupported = await xr.isSessionSupported('immersive-ar');
+            console.log('isInlineSupported', isInlineSupported);
+            console.log('isVrSupported', isVrSupported);
+            console.log('isArSupported', isArSupported);
+
+            const sessionType = isArSupported ? 'immersive-ar' : isVrSupported ? 'immersive-vr' : isInlineSupported ? 'inline' : null;
+            console.log('sessionType', sessionType);
+            if (!sessionType) throw new Error('No sessionType found');
+            const session = await xr.requestSession(sessionType).catch((err) => {
+                console.error('Error requestSession', err);
+            });
+
+            if (!session) throw new Error('No session found');
+
+            console.log('WebXR - session', session, gl);
+            await session.updateRenderState({
+                baseLayer: new XRWebGLLayer(session, gl)
+            });
+
+            // A 'local' reference space has a native origin that is located
+            // near the viewer's position at the time the session was created.
+            const referenceSpace = await session.requestReferenceSpace('local').catch((err) => {
+                console.error('Error requestReferenceSpace', err);
+                throw err;
+            });
+
+            console.log('WebXR - initialized');
+
+            const webXR = {
+                session,
+                referenceSpace
+            };
+            window.webXR = webXR;
+
+            console.log('session.renderState.baseLayer', session.renderState.baseLayer);
+            console.log('layer after triggerRepaint:', session.requestAnimationFrame);
+
+            const loop = () => {
+                maplibreMap.triggerRepaint(session.requestAnimationFrame.bind(session));
+                session.requestAnimationFrame(loop);
+            };
+            maplibreMap.once('idle', loop);
+
+            // const glLayer = frame.session.renderState.baseLayer;
+            // gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
+            // maplibreMap.painter.context.setViewFramebuffer(glLayer.framebuffer);
+            return webXR;
+        }
+    } catch (err) {
+        console.error('WebXR - Error initialize', err);
+        return false;
+    }
+
+}
+</script>
+<script>
+    window.maplibreMap = new maplibregl.Map({
         container: 'map',
         zoom: 3,
         center: [7.5, 58],
@@ -37,7 +128,7 @@
             uniform mat4 u_matrix;
             in vec2 a_pos;
             void main() {
-                gl_Position = u_matrix * vec4(a_pos, 0.0, 1.0);
+                gl_Position = vec4(a_pos, 0.0, 1.0);
             }`;
 
             // create GLSL source for fragment shader
@@ -66,19 +157,19 @@
 
             this.aPos = gl.getAttribLocation(this.program, 'a_pos');
 
-            // define vertices of the triangle to be rendered in the custom style layer
-            const helsinki = maplibregl.MercatorCoordinate.fromLngLat({
-                lng: 25.004,
-                lat: 60.239
-            });
-            const berlin = maplibregl.MercatorCoordinate.fromLngLat({
-                lng: 13.403,
-                lat: 52.562
-            });
-            const kyiv = maplibregl.MercatorCoordinate.fromLngLat({
-                lng: 30.498,
-                lat: 50.541
-            });
+            // // define vertices of the triangle to be rendered in the custom style layer
+            // const helsinki = maplibregl.MercatorCoordinate.fromLngLat({
+            //     lng: 25.004,
+            //     lat: 60.239
+            // });
+            // const berlin = maplibregl.MercatorCoordinate.fromLngLat({
+            //     lng: 13.403,
+            //     lat: 52.562
+            // });
+            // const kyiv = maplibregl.MercatorCoordinate.fromLngLat({
+            //     lng: 30.498,
+            //     lat: 50.541
+            // });
 
             // create and initialize a WebGLBuffer to store vertex and color data
             this.buffer = gl.createBuffer();
@@ -86,12 +177,12 @@
             gl.bufferData(
                 gl.ARRAY_BUFFER,
                 new Float32Array([
-                    helsinki.x,
-                    helsinki.y,
-                    berlin.x,
-                    berlin.y,
-                    kyiv.x,
-                    kyiv.y
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.5,
+                    0.5,
+                    0.5
                 ]),
                 gl.STATIC_DRAW
             );
@@ -99,12 +190,19 @@
 
         // method fired on each animation frame
         render (gl, matrix) {
+            // gl.clearColor(0.0, 0.0, 0.3, 1.0); // Set clear color to black, fully opaque
+            // gl.clearDepth(1.0); // Clear everything
+            // gl.enable(gl.DEPTH_TEST); // Enable depth testing
+            // gl.depthFunc(gl.LEQUAL); // Near things obscure far things
+
+            // Clear the canvas before we start drawing on it.
+            // gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
             gl.useProgram(this.program);
-            gl.uniformMatrix4fv(
-                gl.getUniformLocation(this.program, 'u_matrix'),
-                false,
-                matrix
-            );
+            // gl.uniformMatrix4fv(
+            //     gl.getUniformLocation(this.program, 'u_matrix'),
+            //     false,
+            //     matrix
+            // );
             gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
             gl.enableVertexAttribArray(this.aPos);
             gl.vertexAttribPointer(this.aPos, 2, gl.FLOAT, false, 0, 0);
@@ -115,8 +213,8 @@
     };
 
     // add the custom style layer to the map
-    map.on('load', () => {
-        map.addLayer(highlightLayer, 'crimea-fill');
+    maplibreMap.on('load', () => {
+        maplibreMap.addLayer(highlightLayer, 'crimea-fill');
     });
 </script>
 </body>

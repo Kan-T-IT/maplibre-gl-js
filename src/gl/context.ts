@@ -56,6 +56,7 @@ export class Context {
     activeTexture: ActiveTextureUnit;
     viewport: Viewport;
     bindFramebuffer: BindFramebuffer;
+    viewFramebuffer: WebGLFramebuffer;
     bindRenderbuffer: BindRenderbuffer;
     bindTexture: BindTexture;
     bindVertexBuffer: BindVertexBuffer;
@@ -97,6 +98,7 @@ export class Context {
         this.activeTexture = new ActiveTextureUnit(this);
         this.viewport = new Viewport(this);
         this.bindFramebuffer = new BindFramebuffer(this);
+        this.viewFramebuffer = null;
         this.bindRenderbuffer = new BindRenderbuffer(this);
         this.bindTexture = new BindTexture(this);
         this.bindVertexBuffer = new BindVertexBuffer(this);
@@ -317,5 +319,9 @@ export class Context {
         // Unbinding the VAO prevents other things (custom layers, new buffer creation) from
         // unintentionally changing the state of the last VAO used.
         this.bindVertexArray.set(null);
+    }
+
+    setViewFramebuffer(viewFramebuffer: WebGLFramebuffer) {
+        this.viewFramebuffer = viewFramebuffer;
     }
 }

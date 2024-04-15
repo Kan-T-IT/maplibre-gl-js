@@ -90,14 +90,15 @@ function drawDebugTile(painter: Painter, sourceCache: SourceCache, coord: Oversc
         tileIdText += ` => ${coord.overscaledZ}`;
     }
     const tileLabel = `${tileIdText} ${tileSizeKb}kB`;
-    drawTextToOverlay(painter, tileLabel);
+    // drawTextToOverlay(painter, tileLabel);
 
-    program.draw(context, gl.TRIANGLES, depthMode, stencilMode, ColorMode.alphaBlended, CullFaceMode.disabled,
-        debugUniformValues(posMatrix, Color.transparent, scaleRatio), null, id,
-        painter.debugBuffer, painter.quadTriangleIndexBuffer, painter.debugSegments);
+    // program.draw(context, gl.TRIANGLES, depthMode, stencilMode, ColorMode.alphaBlended, CullFaceMode.disabled,
+    //     debugUniformValues(posMatrix, Color.transparent, scaleRatio), null, id,
+    //     painter.debugBuffer, painter.quadTriangleIndexBuffer, painter.debugSegments);
     program.draw(context, gl.LINE_STRIP, depthMode, stencilMode, colorMode, CullFaceMode.disabled,
         debugUniformValues(posMatrix, Color.red), terrainData, id,
         painter.debugBuffer, painter.tileBorderIndexBuffer, painter.debugSegments);
+    // console.log('posMatrix', posMatrix);
 }
 
 function drawTextToOverlay(painter: Painter, text: string) {

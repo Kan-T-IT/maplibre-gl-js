@@ -58,6 +58,7 @@ type PainterOptions = {
     zooming: boolean;
     moving: boolean;
     fadeDuration: number;
+    frame: any;
 };
 
 /**
@@ -338,6 +339,7 @@ export class Painter {
     }
 
     render(style: Style, options: PainterOptions) {
+        console.log('painter.render - options.frame', options.frame);
         this.style = style;
         this.options = options;
 
@@ -407,65 +409,123 @@ export class Painter {
 
             this.renderLayer(this, sourceCaches[layer.source], layer, coords);
         }
+        this.context.setViewFramebuffer(null);
+        this.context.bindFramebuffer.set(this.context.viewFramebuffer);
 
-        // Rebind the main framebuffer now that all offscreen layers have been rendered:
-        this.context.bindFramebuffer.set(null);
+        // @ts-ignore
+        if (options.frame && window.webXR && window.webXR.referenceSpace) {
+            // @ts-ignore
+            const adjustedRefSpace = window.webXR.referenceSpace;//applyPositionOffsets(webXR.referenceSpace);
+            // console.log('adjustedRefSpace', adjustedRefSpace);
+            const pose = options.frame.getViewerPose(adjustedRefSpace);
 
+            // console.log('baseLayer:', options.frame.session.renderState.baseLayer);
+            // if (pose) {
+            // }
+            const glLayer = options.frame.session.renderState.baseLayer;
+            console.log('glLayer', glLayer.framebuffer);
+            this.context.setViewFramebuffer(glLayer.framebuffer);
+            this.context.bindFramebuffer.set(this.context.viewFramebuffer);
+
+            const gl = this.context.gl;
+
+            gl.clearColor(0.0, 1.0, 0, 0.0);
+            gl.clearDepth(1.0);
+            // gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            this.context.clear({color: options.showOverdrawInspector ? Color.black : Color.black, depth: 1});
+            this.clearStencil();
+
+            for (const view of pose.views) {
+                console.log('view', view);
+                const viewport = glLayer.getViewport(view);
+                gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
+
+                console.log('viewport:', viewport.x, viewport.y, viewport.width, viewport.height);
+                const aspect = viewport.width / viewport.height;
+                const viewMatrix = mat4.create();
+                mat4.lookAt(viewMatrix, [0, 0, 1], [0, 0, 0], [0, 1, 0]);
+                // const projectionMatrix = mat4.perspective(mat4.create(), glMatrix.toRadian(90), aspect, 0.001, 100);
+
+                // global.viewMatrix = view.transform.inverse.matrix;
+                // global.projectionMatrix = view.projectionMatrix;
+                // global.aspect = aspect;
+                // global.clientWidth = viewport.width;
+                // global.clientHeight = viewport.height;
+
+                // requestAnimationFrame(() => {
+                //     setupUniformSettings(programs.find((program) => program.name === 'basic').glProgram, global.uboBuffer);
+                // });
+
+                // // myRenderScene(gl, view, sceneData, deltaTime);
+                renderScene.bind(this)();
+            }
+        } else {
+            // Rebind the main framebuffer now that all offscreen layers have been rendered:
+            this.context.bindFramebuffer.set(null);
+            renderScene.bind(this)();
+        }
+
+        function renderScene() {
+        // return;
         // Clear buffers in preparation for drawing to the main framebuffer
-        this.context.clear({color: options.showOverdrawInspector ? Color.black : Color.transparent, depth: 1});
-        this.clearStencil();
+            console.log('painter.render - this:', this);
 
-        this._showOverdrawInspector = options.showOverdrawInspector;
-        this.depthRangeFor3D = [0, 1 - ((style._order.length + 2) * this.numSublayers * this.depthEpsilon)];
+            if (!this) return;
+            this._showOverdrawInspector = options?.showOverdrawInspector;
+            this.depthRangeFor3D = [0, 1 - ((style._order.length + 2) * this.numSublayers * this.depthEpsilon)];
 
-        // Opaque pass ===============================================
-        // Draw opaque layers top-to-bottom first.
-        if (!this.renderToTexture) {
-            this.renderPass = 'opaque';
+            // Opaque pass ===============================================
+            // Draw opaque layers top-to-bottom first.
+            if (!this.renderToTexture) {
+                this.renderPass = 'opaque';
 
-            for (this.currentLayer = layerIds.length - 1; this.currentLayer >= 0; this.currentLayer--) {
+                for (this.currentLayer = layerIds.length - 1; this.currentLayer >= 0; this.currentLayer--) {
+                    const layer = this.style._layers[layerIds[this.currentLayer]];
+                    const sourceCache = sourceCaches[layer.source];
+                    const coords = coordsAscending[layer.source];
+
+                    this._renderTileClippingMasks(layer, coords);
+                    this.renderLayer(this, sourceCache, layer, coords);
+                }
+            }
+
+            // Translucent pass ===============================================
+            // Draw all other layers bottom-to-top.
+            this.renderPass = 'translucent';
+            if (!this.style._layers.highlight) return;
+            // console.log('LAYERS!!:', this.style._layers);
+            // this.renderLayer(this, this.style._layers.highlight.source, this.style._layers.highlight, []);
+
+            for (this.currentLayer = 0; this.currentLayer < layerIds.length; this.currentLayer++) {
                 const layer = this.style._layers[layerIds[this.currentLayer]];
                 const sourceCache = sourceCaches[layer.source];
-                const coords = coordsAscending[layer.source];
 
-                this._renderTileClippingMasks(layer, coords);
+                if (this.renderToTexture && this.renderToTexture.renderLayer(layer)) continue;
+
+                // For symbol layers in the translucent pass, we add extra tiles to the renderable set
+                // for cross-tile symbol fading. Symbol layers don't use tile clipping, so no need to render
+                // separate clipping masks
+                const coords = (layer.type === 'symbol' ? coordsDescendingSymbol : coordsDescending)[layer.source];
+
+                this._renderTileClippingMasks(layer, coordsAscending[layer.source]);
                 this.renderLayer(this, sourceCache, layer, coords);
             }
-        }
 
-        // Translucent pass ===============================================
-        // Draw all other layers bottom-to-top.
-        this.renderPass = 'translucent';
-
-        for (this.currentLayer = 0; this.currentLayer < layerIds.length; this.currentLayer++) {
-            const layer = this.style._layers[layerIds[this.currentLayer]];
-            const sourceCache = sourceCaches[layer.source];
-
-            if (this.renderToTexture && this.renderToTexture.renderLayer(layer)) continue;
-
-            // For symbol layers in the translucent pass, we add extra tiles to the renderable set
-            // for cross-tile symbol fading. Symbol layers don't use tile clipping, so no need to render
-            // separate clipping masks
-            const coords = (layer.type === 'symbol' ? coordsDescendingSymbol : coordsDescending)[layer.source];
-
-            this._renderTileClippingMasks(layer, coordsAscending[layer.source]);
-            this.renderLayer(this, sourceCache, layer, coords);
-        }
-
-        if (this.options.showTileBoundaries) {
-            const selectedSource = selectDebugSource(this.style, this.transform.zoom);
-            if (selectedSource) {
-                drawDebug(this, selectedSource, selectedSource.getVisibleCoordinates());
+            if (this.options.showTileBoundaries) {
+                const selectedSource = selectDebugSource(this.style, this.transform.zoom);
+                if (selectedSource) {
+                    drawDebug(this, selectedSource, selectedSource.getVisibleCoordinates());
+                }
             }
-        }
 
-        if (this.options.showPadding) {
-            drawDebugPadding(this);
-        }
+            if (this.options.showPadding) {
+                drawDebugPadding(this);
+            }
 
-        // Set defaults for most GL values so that anyone using the state after the render
-        // encounters more expected values.
-        this.context.setDefault();
+            // Set defaults for most GL values so that anyone using the state after the render
+            // encounters more expected values.
+            this.context.setDefault();
+        }
     }
 
     renderLayer(painter: Painter, sourceCache: SourceCache, layer: StyleLayer, coords: Array<OverscaledTileID>) {

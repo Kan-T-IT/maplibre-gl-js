@@ -18,55 +18,99 @@
 <script>
     const map = new maplibregl.Map({
         container: 'map',
-        style:
-            'https://api.maptiler.com/maps/streets/style.json?key=get_your_own_OpIi9ZULNHzrESv6T2vL',
-        zoom: 1
+        showOverdrawInspector: true,
+        showCollisionBoxes: true,
+        style: {
+            version: 8,
+            sources: {
+                'shape-source': {
+                    'type': 'geojson',
+                    'data': {
+                        'type': 'Feature',
+                        'geometry': {
+                            'type': 'Polygon',
+                            'coordinates': [
+                                [
+                                    [0.005, -0.005],
+                                    [-0.005, -0.005],
+                                    [-0.005, 0.005],
+                                    [0.005, 0.005],
+                                ]
+                            ]
+                        },
+                        'properties': {
+                            'render_height': 200
+                        }
+                    }
+                }
+            },
+            layers: [
+                {
+                    'id': '3d-test',
+                    'source': 'shape-source',
+                    'type': 'line',
+                    'layout': {
+                        visibility: 'none'
+                    },
+                    'paint': {
+                        'line-color': 'blue',
+                        'line-width': 4
+                    }
+                },
+    
+            ]
+        },
+        center: [0.0, 0.0],
+        zoom: 14.001,
     });
 
-    map.on('load', () => {
-        // Add GeoJSON data
-        map.addSource('source', {
-            'type': 'geojson',
-            'data': {
-                'type': 'Feature',
-                'properties': {},
-                'geometry': {
-                    'type': 'Polygon',
-                    'coordinates': [
-                        [
-                            [-30, -25],
-                            [-30, 35],
-                            [30, 35],
-                            [30, -25],
-                            [-30, -25]
-                        ]
-                    ]
-                }
+    const eventImagesLoaded = new Event('image-loaded');
+const images = [];
+
+document.addEventListener('image-loaded', () => {
+
+        console.log('images-loaded!!');
+        if (images.length < 2) return;
+    
+        map.addLayer({
+            'id': 'pattern-layer',
+            'type': 'fill',
+            'source': 'shape-source',
+            'paint': {
+                'fill-pattern': [
+                    'step', ['zoom'], 'pattern-a', 14, 'pattern-b'
+                ]
             }
         });
+});
 
-        // Load an image to use as the pattern
+map.on('load', () => {
         map.loadImage(
-            'https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Cat_silhouette.svg/64px-Cat_silhouette.svg.png',
-            (err, image) => {
+            'https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Red_square.svg/120px-Red_square.svg.png?20190714071002',
+            (err, imageA) => {
                 // Throw an error if something went wrong
                 if (err) throw err;
-
-                // Declare the image
-                map.addImage('pattern', image);
-
-                // Use it
-                map.addLayer({
-                    'id': 'pattern-layer',
-                    'type': 'fill',
-                    'source': 'source',
-                    'paint': {
-                        'fill-pattern': 'pattern'
+                images.push(imageA);
+                map.addImage('pattern-a', imageA);
+                document.dispatchEvent(eventImagesLoaded);
+    
+                map.loadImage(
+                    'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Dog_group_Sighthounds.svg/64px-Dog_group_Sighthounds.svg.png',
+                    (err, imageB) => {
+                        // Throw an error if something went wrong
+                        if (err) throw err;
+                        images.push(imageB);
+                        map.addImage('pattern-b', imageB);
+                        document.dispatchEvent(eventImagesLoaded);
                     }
-                });
+                );
             }
         );
-    });
+
+});
+map.showTileBoundaries = true;
+map.showCollisionBoxes = true;
+
 </script>
 </body>
 </html>

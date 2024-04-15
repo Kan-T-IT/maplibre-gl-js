@@ -16,9 +16,20 @@ export const browser = {
      */
     now,
 
-    frame(fn: (paintStartTimestamp: number) => void): Cancelable {
-        const frame = requestAnimationFrame(fn);
-        return {cancel: () => cancelAnimationFrame(frame)};
+    requestAnimationFrame: undefined,
+    setRequestAnimationFrame(requestAnimationFrame?: (callback: FrameRequestCallback) => number) {
+        this.requestAnimationFrame = requestAnimationFrame;
+    },
+    getDefaultRequestAnimationFrame() {
+        return window.requestAnimationFrame.bind(window);
+    },
+    frame(fn: (paintStartTimestamp: number, frame?: any) => void, requestAnimationFrame?: (callback: FrameRequestCallback) => number): Cancelable {
+        if (!this.requestAnimationFrame || requestAnimationFrame) {
+            this.setRequestAnimationFrame(requestAnimationFrame ?? this.getDefaultRequestAnimationFrame());
+        }
+        // console.log('frame', this.requestAnimationFrame === requestAnimationFrame, this.requestAnimationFrame, requestAnimationFrame);
+        const frameId = this.requestAnimationFrame(fn);
+        return {cancel: () => cancelAnimationFrame(frameId)};
     },
 
     getImageData(img:  HTMLImageElement | ImageBitmap, padding: number = 0): ImageData {

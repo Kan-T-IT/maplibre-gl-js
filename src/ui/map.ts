@@ -2991,7 +2991,8 @@ export class Map extends Camera {
             depth: true,
             failIfMajorPerformanceCaveat: this._failIfMajorPerformanceCaveat,
             preserveDrawingBuffer: this._preserveDrawingBuffer,
-            antialias: this._antialias || false
+            antialias: this._antialias || false,
+            xrCompatible: true
         };
 
         let webglcontextcreationerrorDetailObject: any = null;
@@ -3117,7 +3118,8 @@ export class Map extends Camera {
      *
      * @returns `this`
      */
-    _render(paintStartTimeStamp: number) {
+    _render(paintStartTimeStamp: number, frame?: any) {
+        // console.log('Map._render', frame);
         const fadeDuration = this._idleTriggered ? this._fadeDuration : 0;
 
         // A custom layer may have used the context asynchronously. Mark the state as dirty.
@@ -3187,6 +3189,7 @@ export class Map extends Camera {
             moving: this.isMoving(),
             fadeDuration,
             showPadding: this.showPadding,
+            frame
         });
 
         this.fire(new Event('render'));
@@ -3307,13 +3310,14 @@ export class Map extends Camera {
      * @see [Add a 3D model](https://maplibre.org/maplibre-gl-js/docs/examples/add-3d-model/)
      * @see [Add an animated icon to the map](https://maplibre.org/maplibre-gl-js/docs/examples/add-image-animated/)
      */
-    triggerRepaint() {
+    triggerRepaint(requestAnimationFrame?: (callback: FrameRequestCallback) => number) {
         if (this.style && !this._frame) {
-            this._frame = browser.frame((paintStartTimeStamp: number) => {
+            // console.log('triggerRepaint', requestAnimationFrame);
+            this._frame = browser.frame((paintStartTimeStamp: number, frame?: any) => {
                 PerformanceUtils.frame(paintStartTimeStamp);
                 this._frame = null;
-                this._render(paintStartTimeStamp);
-            });
+                this._render(paintStartTimeStamp, frame);
+            }, requestAnimationFrame);
         }
     }
 
